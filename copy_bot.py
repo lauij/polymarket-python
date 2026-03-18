@@ -102,9 +102,15 @@ class TradeWatcher:
         log.info("Loaded %d existing trades - will ignore these.", len(self.seen_ids))
 
     def _fetch_trades(self, limit: int = 100) -> list[Trade]:
-        """Fetch recent trades from the Polymarket data API."""
-        url = f"{DATA_API}/trades"
-        params = {"user": self.address, "limit": limit}
+        """Fetch recent trades from the Polymarket activity API."""
+        url = f"{DATA_API}/activity"
+        params = {
+            "user": self.address,
+            "type": "TRADE",
+            "limit": limit,
+            "sortBy": "TIMESTAMP",
+            "sortDirection": "DESC",
+        }
         try:
             resp = self._session.get(url, params=params, timeout=10)
             resp.raise_for_status()
@@ -118,13 +124,14 @@ class TradeWatcher:
             try:
                 raw_size = float(item.get("size", 0))
                 raw_price = float(item.get("price", 0))
+                usdc_size = float(item.get("usdcSize", raw_price * raw_size))
                 trade = Trade(
                     trade_id=item["transactionHash"] + "_" + item.get("asset", ""),
                     market_id=item.get("conditionId", ""),
                     token_id=item.get("asset", ""),
                     side=item.get("side", "BUY").upper(),
                     price=raw_price,
-                    size_usd=round(raw_price * raw_size, 4),
+                    size_usd=round(usdc_size, 4),
                     shares=raw_size,
                     outcome=item.get("outcome", "Yes"),
                     timestamp=int(item.get("timestamp", 0)),
